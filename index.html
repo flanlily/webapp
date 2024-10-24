@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -274,3 +275,281 @@
     </script>
 </body>
 </html>
+=======
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web Application with Shiritori Game</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            text-align: center;
+            width: 100%;
+            max-width: 800px;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        .mode-switch button {
+            margin: 10px;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        .editor-container {
+            margin-top: 20px;
+            width: 100%;
+        }
+        .editor {
+            width: 100%;
+            height: 200px;
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin-bottom: 20px;
+            box-sizing: border-box;
+            text-align: left;
+        }
+        .output, .history {
+            margin-top: 20px;
+            font-size: 24px;
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            box-shadow: 0 0 5px rgba(0, 0, 0, 0.1);
+            text-align: left;
+        }
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Web Application</h1>
+        <div class="mode-switch">
+            <button id="basicModeBtn">普段使い用モード</button>
+            <button id="advancedModeBtn">しりとりモード</button>
+        </div>
+
+        <div id="basicMode" class="mode">
+            <h2>普段使い用モード</h2>
+            <div class="editor-container">
+                <div id="editor" contenteditable="true" class="editor"></div>
+                <button onclick="exportText()">エクスポート</button>
+                <input type="file" id="importFile" onchange="importText()">
+            </div>
+        </div>
+
+        <div id="advancedMode" class="mode hidden">
+            <h2>しりとりモード</h2>
+            <p>ここでは、1つの端末を用いてCPU、または友達としりとりができます。</p>
+
+            <div class="player-config">
+                <h3>しりとり対戦設定</h3>
+                <input type="number" id="playerCount" placeholder="参加人数" min="1" max="10">
+                <button onclick="startGame()">ゲーム開始</button>
+            </div>
+            <div id="gameArea" class="hidden">
+                <h3 id="currentTurn"></h3>
+                <p id="initialLetter" class="red" style="font-size: 18px; color: red;"></p>
+                <input type="text" id="playerInput" placeholder="単語を入力">
+                <button onclick="submitWord()">提出</button>
+                <div class="history" id="history"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentPlayerIndex = 0;
+        let players = [];
+        let currentInitialLetter = '';
+        const initialLetters = 'abcdefghijklmnopqrstuvwxyzあいうえおかきくけこさしすせそたちつてとなしぬねのはひふへほまみむめもやゆよらりるれろわをん';
+        let aiWords = [];
+        let usedWords = new Set();
+        let gameStarted = false;
+
+        async function fetchWikipediaWords() {
+            try {
+                const response = await fetch('/api/words');
+                if (!response.ok) throw new Error('APIの取得に失敗しました');
+                const data = await response.json();
+                return data;
+            } catch (error) {
+                console.error("単語の取得中にエラーが発生しました:", error);
+                alert("単語の取得中にエラーが発生しました。");
+                return [];
+            }
+        }
+
+        // モード切り替えの処理
+        document.getElementById('basicModeBtn').addEventListener('click', function() {
+            document.getElementById('basicMode').style.display = 'block';
+            document.getElementById('advancedMode').style.display = 'none';
+        });
+
+        document.getElementById('advancedModeBtn').addEventListener('click', async function() {
+            document.getElementById('basicMode').style.display = 'none';
+            document.getElementById('advancedMode').style.display = 'block';
+            aiWords = await fetchWikipediaWords();
+        });
+
+        // テキストのエクスポート機能
+        function exportText() {
+            const editorContent = document.getElementById('editor').innerHTML;
+            const blob = new Blob([editorContent], { type: 'text/html' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = 'exportedText.html';
+            link.click();
+        }
+
+        // テキストのインポート機能
+        function importText() {
+            const fileInput = document.getElementById('importFile');
+            const file = fileInput.files[0];
+            if (!file) {
+                alert("ファイルを選択してください。");
+                return;
+            }
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                document.getElementById('editor').innerHTML = e.target.result;
+            };
+            reader.readAsText(file);
+        }
+
+        // ゲーム開始
+        async function startGame() {
+            const playerCount = parseInt(document.getElementById('playerCount').value);
+            if (isNaN(playerCount) || playerCount < 1) {
+                alert('1人以上の参加者を設定してください。');
+                return;
+            }
+
+            players = [];
+            document.getElementById('history').innerHTML = '';
+            for (let i = 0; i < playerCount; i++) {
+                const playerName = prompt(`プレイヤー ${i + 1} の名前を入力してください:`, `プレイヤー${i + 1}`);
+                players.push(playerName || `プレイヤー${i + 1}`);
+            }
+
+            do {
+                const randomIndex = Math.floor(Math.random() * initialLetters.length);
+                currentInitialLetter = initialLetters[randomIndex];
+            } while (currentInitialLetter === 'ん');
+
+            document.getElementById('initialLetter').innerText = `最初の文字: ${currentInitialLetter}`;
+            currentPlayerIndex = 0;
+            usedWords.clear();
+            updateCurrentTurn();
+            document.getElementById('gameArea').style.display = 'block';
+            gameStarted = true;
+        }
+
+        // 現在のターンを更新
+        function updateCurrentTurn() {
+            const currentPlayer = players[currentPlayerIndex];
+            document.getElementById('currentTurn').innerText = `${currentPlayer}のターンです`;
+
+            if (currentPlayer === "AI" && players.length === 1) {
+                setTimeout(generateAIWord, 1000);
+            }
+        }
+
+        // 単語の提出処理
+        function submitWord() {
+            if (!gameStarted) {
+                alert("ゲームが開始されていません。");
+                return;
+            }
+
+            const inputField = document.getElementById('playerInput');
+            const word = inputField.value.trim();
+
+            if (word === '') {
+                alert('単語を入力してください。');
+                return;
+            }
+
+            if (usedWords.has(word)) {
+                alert(`${word}はすでに使用されています！`);
+                inputField.value = '';
+                return;
+            }
+
+            if (currentPlayerIndex === 0) {
+                if (word.charAt(0) !== currentInitialLetter) {
+                    alert(`${players[currentPlayerIndex]}が入力した単語が最初の文字と一致しないため、${players[currentPlayerIndex]}の負けです！`);
+                    resetGame();
+                    return;
+                }
+            } else {
+                const previousWord = getLastSubmittedWord();
+                if (!previousWord || word.charAt(0) !== previousWord.charAt(previousWord.length - 1)) {
+                    alert(`${players[currentPlayerIndex]}が入力した単語が正しくないため、${players[currentPlayerIndex]}の負けです！`);
+                    resetGame();
+                    return;
+                }
+            }
+
+            usedWords.add(word);
+            document.getElementById('history').innerHTML += `${players[currentPlayerIndex]}: ${word}<br>`;
+            inputField.value = '';
+
+            currentPlayerIndex = (currentPlayerIndex + 1) % players.length;
+            currentInitialLetter = word.charAt(word.length - 1);
+            updateCurrentTurn();
+        }
+
+        // 最後に提出された単語を取得
+        function getLastSubmittedWord() {
+            const history = document.getElementById('history').innerHTML.split('<br>').filter(line => line);
+            return history.length ? history[history.length - 1].split(': ')[1] : null;
+        }
+
+        // AIが単語を生成
+        async function generateAIWord() {
+            if (currentPlayerIndex !== 0 || !gameStarted) return;
+
+            let possibleWords = aiWords.filter(word => 
+                word.charAt(0) === currentInitialLetter && !usedWords.has(word));
+            if (possibleWords.length === 0) {
+                alert("AIの負けです！");
+                resetGame();
+                return;
+            }
+
+            const aiWord = possibleWords[Math.floor(Math.random() * possibleWords.length)];
+            usedWords.add(aiWord);
+            document.getElementById('history').innerHTML += `AI: ${aiWord}<br>`;
+
+            currentInitialLetter = aiWord.charAt(aiWord.length - 1);
+            currentPlayerIndex = (currentPlayerIndex + 1) % players.length;
+
+            updateCurrentTurn();
+        }
+
+        // ゲームをリセット
+        function resetGame() {
+            gameStarted = false;
+            document.getElementById('gameArea').style.display = 'none';
+            document.getElementById('history').innerHTML = '';
+            players = [];
+            currentPlayerIndex = 0;
+            usedWords.clear();
+            alert("ゲームが終了しました。");
+        }
+    </script>
+</body>
+</html>
+>>>>>>> 2769016d9e30db929aaa1a4e2c2095f741b9583b
